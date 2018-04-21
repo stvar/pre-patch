@@ -1,0 +1,53 @@
+
+                                   Pre-patch
+                                   ~~~~~~~~~
+                        Stefan Vargyas, stvar@yahoo.com
+
+                                  Apr 21, 2018
+
+
+Table of Contents
+-----------------
+
+0. Copyright
+1. The Pre-Patch Program
+2. Use Cases of Pre-Patch
+3. References
+
+
+0. Copyright
+============
+
+This program is GPL-licensed free software. Its author is Stefan Vargyas. You
+can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+You should have received a copy of the GNU General Public License along with
+this program (look up for the file COPYING in the top directory of the source
+tree). If not, see http://gnu.org/licenses/gpl.html.
+
+
+1. The Pre-Patch Program
+========================
+
+...
+
+The Pre-Patch program consists of a single Python 2.6 script 'pre-patch.py' --
+which is using only standard Python modules. However, this script uses a few
+OS-dependent features that ties it to GNU/Linux platforms.
+
+
+2. Use Cases of Pre-Patch
+=========================
+
+...
+
+
+3. References
+=============
+
+...
+
+
+
