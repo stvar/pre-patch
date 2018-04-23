@@ -364,10 +364,10 @@ class Unified:
     def file_name(self, opt):
         if opt.name_globbing != self.NAME_TARGET:
             s = self.source.file_name(opt)[1]
-        if opt.name_globbing != self.NAME_SOURCE:
-            t = self.target.file_name(opt)[1]
         if opt.name_globbing == self.NAME_SOURCE:
             return s
+        if opt.name_globbing != self.NAME_SOURCE:
+            t = self.target.file_name(opt)[1]
         if opt.name_globbing == self.NAME_TARGET:
             return t
         assert opt.name_globbing == self.NAME_SUFFIX
