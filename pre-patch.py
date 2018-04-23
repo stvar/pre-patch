@@ -648,7 +648,7 @@ class Parser:
         else:
             self.tok = self.TOK_TEXT
 
-    def missed_tok(self, tok = None):
+    def missed_tok(self):
         if self.tok == self.TOK_EOF:
             self.error(self.lno - 1,
                 "unexpected end of file")
@@ -662,7 +662,7 @@ class Parser:
 
     def need_tok(self, tok):
         if self.tok != tok:
-            self.missed_tok(tok)
+            self.missed_tok()
         elif tok != self.TOK_EOF:
             self.eat_tok()
 
