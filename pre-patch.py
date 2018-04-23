@@ -635,9 +635,7 @@ class Parser:
 
         if len(self.line) == 0:
             self.tok = self.TOK_EOF
-            return
-
-        if self.line.startswith('--- '):
+        elif self.line.startswith('--- '):
             self.tok = self.TOK_SOURCE
         elif self.line.startswith('+++ '):
             self.tok = self.TOK_TARGET
