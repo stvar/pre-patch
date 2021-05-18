@@ -196,8 +196,10 @@ class Range:
 
     def includes(self, val):
         return \
-            self.first <= val and \
-            self.last >= val
+            (self.first == 0 or \
+             self.first <= val) and \
+            (self.last == 0 or \
+             self.last >= val)
 
 class Lexeme:
 
