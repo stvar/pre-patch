@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# Copyright (C) 2018  Stefan Vargyas
+# Copyright (C) 2018, 2021  Stefan Vargyas
 # 
 # This file is part of Pre-Patch.
 # 
