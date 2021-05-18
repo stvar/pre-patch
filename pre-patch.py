@@ -625,7 +625,7 @@ class Parser:
     TOK_SOURCE = 1 << 2 # '--- '
     TOK_TARGET = 1 << 3 # '+++ '
     TOK_ADDR   = 1 << 4 # '@'
-    TOK_LINE   = 1 << 5 # '-', '+', ' '
+    TOK_LINE   = 1 << 5 # '-', '+', ' ', '\\'
     TOK_TEXT   = 1 << 6 # anything else
 
     def next_tok(self):
@@ -641,7 +641,8 @@ class Parser:
             self.tok = self.TOK_TARGET
         elif self.line.startswith('@'):
             self.tok = self.TOK_ADDR
-        elif self.line.startswith(('-', '+', ' ')):
+        elif self.line.startswith(
+                ('-', '+', ' ', '\\')):
             self.tok = self.TOK_LINE
         else:
             self.tok = self.TOK_TEXT
@@ -761,7 +762,7 @@ class Parser:
             )
         )
 
-    # line    : [-+ ] any "\n"
+    # line    : [-+ \] any "\n"
     #         ;
     def parse_line(self):
         return self.parse_tok(self.TOK_LINE)
@@ -826,7 +827,7 @@ class Parser:
             )
         )
 
-    # text    : (?<! [-+@ ]) any "\n"
+    # text    : (?<! [-+@ \]) any "\n"
     #         ;
     # entry   : text
     #         | unified

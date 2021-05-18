@@ -25,8 +25,8 @@
 # given and are not removed during text tokenization.
 #
 # As a result of this rule, the terminal symbols '---', '+++',
-# '@@', '-', '+' and ' ' are always placed at the beginning of
-# input text lines.
+# '@@', '-', '+', ' ' and '\\' are always placed at beginning
+# of input text lines.
 #
 
 # Special notations:
@@ -41,7 +41,7 @@ diff    : entry*
 entry   : text
         | unified
         ;
-text    : (?<![-+@ ]) any "\n"
+text    : (?<![-+@ \]) any "\n"
         ;
 unified : source target hunk+
         ;
@@ -61,7 +61,7 @@ num     : [0-9]+
         ;
 annot   : ~ any
         ;
-line    : [-+ ] any "\n"
+line    : [-+ \] any "\n"
         ;
 any     : .*
         ;
