@@ -18,8 +18,6 @@
 # along with Pre-Patch.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys, os, re, ctypes
-
-from types import NoneType
 from itertools import imap
 
 program = 'pre-patch'
