@@ -24,7 +24,7 @@ program = 'pre-patch'
 verdate = '0.1 2018-01-29 17:00' # $ date +'%F %R'
 
 license = """\
-Copyright (C) 2018  Stefan Vargyas.
+Copyright (C) 2018, 2021  Stefan Vargyas.
 License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law."""
