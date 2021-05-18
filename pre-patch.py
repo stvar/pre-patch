@@ -21,7 +21,7 @@ import sys, os, re, ctypes
 from itertools import imap
 
 program = 'pre-patch'
-verdate = '0.1 2018-01-29 17:00' # $ date +'%F %R'
+verdate = '0.2 2021-05-15 22:10' # $ date +'%F %R'
 
 license = """\
 Copyright (C) 2018, 2021  Stefan Vargyas.
