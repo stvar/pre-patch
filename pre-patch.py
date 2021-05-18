@@ -82,7 +82,7 @@ class Libc:
             ('tm_isdst',  ctypes.c_int),
             ('tm_gmtoff', ctypes.c_long),
             ('tm_zone',   ctypes.POINTER(
-                        ctypes.c_char)),
+                          ctypes.c_char)),
         ]
 
     def __init__(self):
