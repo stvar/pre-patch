@@ -64,6 +64,16 @@ def warn(msg, *args):
         msg = msg % args
     cerr("%s: warning: %s\n", program, msg)
 
+def is_done(iter):
+    if iter is None:
+        return True
+    try:
+        iter.next()
+    except StopIteration:
+        return True
+    else:
+        return False
+
 class Libc:
 
     class Struct_tm(ctypes.Structure):
@@ -231,8 +241,14 @@ class Text:
         opt.clear_text or \
         where(self.text)
 
+    def filter(self, opt, state):
+        return bool(opt.clear_text)
+
     def stats(self, where, opt):
         pass
+
+    def fixup_next(self, fiter):
+        return fiter
 
 class Address:
 
@@ -273,6 +289,24 @@ class Address:
         else:
             where(self.text)
 
+    REX = Rex(r"^([0-9]+)((?:,[0-9]+)?)$")
+
+    def fixup_addr(self, lexeme, offset):
+        assert self.REX.match(self.text[
+            lexeme.start:
+            lexeme.end])
+        return \
+            str(int(self.REX[1]) + offset) + \
+            self.REX[2]
+
+    def fixup(self, offset):
+        self.text = \
+        self.text[:self.source.start] + \
+        self.fixup_addr(self.source, offset) + \
+        self.text[self.source.end:self.target.start] + \
+        self.fixup_addr(self.target, offset) + \
+        self.text[self.target.end:]
+
 class Hunk:
 
     def __init__(self, lineno, addr, lines):
@@ -292,6 +326,9 @@ class Hunk:
             self.lineno(where, opt, k)
             where(l)
 
+    def fixup(self, offset):
+        self.addr.fixup(offset)
+
 class Header:
 
     def __init__(self, text, file, stamp, time):
@@ -300,10 +337,11 @@ class Header:
         self.stamp = stamp
         self.time = time
 
-    def file_name(self, opt):
+    def file_name(self, opt = None):
         n = self.text[
             self.file.start:
             self.file.end]
+        if not opt: return n
         # stev: opt.clear_suffix =>
         #       opt.clear_prefix
         assert \
@@ -419,11 +457,33 @@ class Unified:
         for h in self.hunks:
             h.write(where, opt)
 
+    def filter(self, opt, state):
+        return \
+            Filter.exclude_unif(self, \
+                opt, state) or \
+            Filter.remove_hunks(self, \
+                opt, state)
+
     def stats(self, where, opt):
         where(self.file_mode())
         where(' ')
         where(self.file_name(opt))
         where("\n")
+
+    def fixup(self, entry):
+        s = self.source.file_name()
+        assert entry.file == s
+        t = self.target.file_name()
+        assert entry.file == t
+        entry.fixup(self.hunks)
+
+    def fixup_next(self, fiter):
+        try:
+            self.fixup(fiter.next())
+        except StopIteration:
+            return None
+        else:
+            return fiter
 
 class Diff:
 
@@ -536,18 +596,8 @@ class Processor:
 
     def write(self, where, opt):
         for e in self.entries:
-            if isinstance(e, Text):
-                if opt.clear_text:
-                    continue
-            elif isinstance(e, Unified):
-                if Filter.exclude_unif(e, opt, \
-                        self.state) or \
-                    Filter.remove_hunks(e, opt, \
-                        self.state):
-                    continue
-            else:
-                assert False
-            self.write_entry(e, where, opt)
+            if not e.filter(opt, self.state):
+                self.write_entry(e, where, opt)
 
 class Printer(Processor):
 
@@ -567,18 +617,24 @@ class Statser(Processor):
     def write_entry(entry, where, opt):
         entry.stats(where, opt)
 
-class Parser:
+class Fixuper(Printer):
 
-    def __init__(self, opt):
-        self.input = opt.input_file
-        self.yielding = \
-            opt.yielding_parse and \
-            opt.action != Act.parse
-        # stev: '... or None' below ensures
-        # that all 'Header.time' be 'None'
-        # if 'opt.check_tstamps' is 'False'
-        self.check_timestamps = \
-            opt.check_tstamps or None
+    def __init__(self, diff):
+        Printer.__init__(self, diff)
+
+    def write(self, where, opt):
+        f = iter(opt.fixup.entries)
+        for e in self.entries:
+            if f is not None:
+                f = e.fixup_next(f)
+            if not e.filter(opt, self.state):
+                e.write(where, opt)
+        assert is_done(f)
+
+class BaseParser:
+
+    def __init__(self, input):
+        self.input = input
         self.open_input()
 
     def open_input(self):
@@ -607,6 +663,8 @@ class Parser:
         for t in reversed(extract_stack()):
             if t[2].startswith('parse_'):
                 return t[2][6:].replace('_', ' ')
+            if t[2] == 'parse':
+                return 'input'
         return None
 
     def invalid_line(self, line, part = False):
@@ -620,8 +678,55 @@ class Parser:
             l = line
         self.error(self.lno - 1, f, c, l)
 
-    TOK_BOF    = 1 << 0
-    TOK_EOF    = 1 << 1
+    TOK_BOF = 1 << 0
+    TOK_EOF = 1 << 1
+
+    def missed_tok(self):
+        if self.tok == self.TOK_EOF:
+            self.error(self.lno - 1,
+                "unexpected end of file")
+        else:
+            self.error(self.lno - 1,
+                "unexpected token")
+
+    def need_tok(self, tok):
+        if self.tok != tok:
+            self.missed_tok()
+        elif tok != self.TOK_EOF:
+            self.eat_tok()
+
+    def peek_tok(self, tok):
+        return bool(self.tok & tok)
+
+    def try_tok(self, tok):
+        if self.peek_tok(tok):
+            self.eat_tok()
+            return True
+        else:
+            return False
+
+    def parse_closure(
+            self, parse, tok, empty = False):
+        r = []
+        if not empty:
+            r.append(parse())
+        while self.peek_tok(tok):
+            r.append(parse())
+        return r
+
+class DiffParser(BaseParser):
+
+    def __init__(self, opt):
+        BaseParser.__init__(self, opt.input_file)
+        self.yielding = \
+            opt.yielding_parse and \
+            opt.action != Act.parse
+        # stev: '... or None' below ensures
+        # that all 'Header.time' be 'None'
+        # if 'opt.check_tstamps' is 'False'
+        self.check_timestamps = \
+            opt.check_tstamps or None
+
     TOK_SOURCE = 1 << 2 # '--- '
     TOK_TARGET = 1 << 3 # '+++ '
     TOK_ADDR   = 1 << 4 # '@'
@@ -647,33 +752,9 @@ class Parser:
         else:
             self.tok = self.TOK_TEXT
 
-    def missed_tok(self):
-        if self.tok == self.TOK_EOF:
-            self.error(self.lno - 1,
-                "unexpected end of file")
-        else:
-            self.error(self.lno - 1,
-                "unexpected token")
-
     def eat_tok(self):
         self.prev = self.line
         self.next_tok()
-
-    def need_tok(self, tok):
-        if self.tok != tok:
-            self.missed_tok()
-        elif tok != self.TOK_EOF:
-            self.eat_tok()
-
-    def peek_tok(self, tok):
-        return bool(self.tok & tok)
-
-    def try_tok(self, tok):
-        if self.peek_tok(tok):
-            self.eat_tok()
-            return True
-        else:
-            return False
 
     def parse_tok(self, tok, constr = None):
         self.need_tok(tok)
@@ -684,15 +765,6 @@ class Parser:
             )
         else:
             return self.prev
-
-    def parse_closure(
-            self, parse, tok, empty = False):
-        r = []
-        if not empty:
-            r.append(parse())
-        while self.peek_tok(tok):
-            r.append(parse())
-        return r
 
     @staticmethod
     def zoffset(zone):
@@ -871,11 +943,154 @@ class Parser:
                 self.yielding]()
         )
 
+class Fixup:
+
+    class Hunk:
+
+        def __init__(self, index, lineno, offset):
+            self.index = index
+            self.lineno = lineno
+            self.offset = offset
+
+        def fixup(self, hunks):
+            assert self.index > 0
+            assert self.index <= len(hunks)
+            hunks[self.index - 1].fixup(self.offset)
+
+    class Fail:
+
+        def __init__(self, index, lineno):
+            self.index = index
+            self.lineno = lineno
+
+        def fixup(self, hunks):
+            pass
+
+    class Entry:
+
+        def __init__(self, file, hunks, errs):
+            self.file = file
+            self.hunks = hunks
+            self.errs = errs
+
+        def fixup(self, hunks):
+            for e in self.hunks:
+                e.fixup(hunks)
+
+    def __init__(self, entries):
+        self.entries = entries
+
+class FixupParser(BaseParser):
+
+    def __init__(self, input):
+        self.input = input
+        self.open_input()
+
+    TOK_FILE = 1 << 2
+    TOK_HUNK = 1 << 3
+    TOK_FAIL = 1 << 4
+    TOK_ERRS = 1 << 5
+
+    FILE = Rex(r"^checking file (.+)$")
+    HUNK = Rex(r"^Hunk #([0-9]+) succeeded at ([0-9]+) "
+               r"\(offset ([0-9]+) lines\)\.$")
+    FAIL = Rex(r"^Hunk #([0-9]+) FAILED at ([0-9]+)\.$")
+    ERRS = Rex(r"^([0-9]+) out of [0-9]+ hunk FAILED$")
+
+    def next_tok(self):
+        self.line = self.file.readline()
+        assert isinstance(self.line, str)
+        self.lno += 1
+
+        if len(self.line) == 0:
+            self.tok = self.TOK_EOF
+            self.lex = None
+        elif self.FILE.match(self.line):
+            self.tok = self.TOK_FILE
+            self.lex = self.FILE[1]
+        elif self.HUNK.match(self.line):
+            self.tok = self.TOK_HUNK
+            self.lex = int(self.HUNK[1]), \
+                       int(self.HUNK[2]), \
+                       int(self.HUNK[3])
+        elif self.FAIL.match(self.line):
+            self.tok = self.TOK_FAIL
+            self.lex = int(self.FAIL[1]), \
+                       int(self.FAIL[2])
+        elif self.ERRS.match(self.line):
+            self.tok = self.TOK_ERRS
+            self.lex = int(self.ERRS[1])
+        else:
+            self.invalid_line(self.line)
+
+    def eat_tok(self):
+        self.prev = self.lex
+        self.next_tok()
+
+    def parse_tok(self, tok):
+        self.need_tok(tok)
+        return self.prev
+
+    # hunk   : HUNK | FAIL
+    #        ;
+    def parse_hunk(self):
+        if self.try_tok(self.TOK_HUNK):
+            return Fixup.Hunk(
+                index = self.prev[0],
+                lineno = self.prev[1],
+                offset = self.prev[2]
+            )
+        if self.try_tok(self.TOK_FAIL):
+            return Fixup.Fail(
+                index = self.prev[0],
+                lineno = self.prev[1]
+            )
+        else:
+            return self.missed_tok()
+
+    # hunks  : hunk *
+    #        ;
+    def parse_hunks(self):
+        return self.parse_closure(
+            self.parse_hunk,
+            self.TOK_HUNK |
+            self.TOK_FAIL,
+            True
+        )
+
+    # errs   : ERRS ?
+    #        ;
+    def parse_errs(self):
+        if self.try_tok(self.TOK_ERRS):
+            return self.prev
+        return None
+
+    # fixup  : FILE hunks errs
+    #        ;
+    def parse_fixup(self):
+        return Fixup.Entry(
+            file = self.parse_tok(self.TOK_FILE),
+            hunks = self.parse_hunks(),
+            errs = self.parse_errs()
+        )
+
+    # fixups : fixup +
+    #        ;
+    def parse(self):
+        self.lno = 1
+        self.next_tok()
+        e = self.parse_closure(
+            self.parse_fixup,
+            self.TOK_FILE
+        )
+        self.need_tok(self.TOK_EOF)
+        return Fixup(entries = e)
+
 class Act:
 
     @staticmethod
     def parse(opt):
-        p = Parser(opt)
+        p = DiffParser(opt)
         return p.parse()
 
     @staticmethod
@@ -886,6 +1101,11 @@ class Act:
     @staticmethod
     def print_stats(opt):
         p = Statser(Act.parse(opt))
+        p.write(cout, opt)
+
+    @staticmethod
+    def fixup_diff(opt):
+        p = Fixuper(Act.parse(opt))
         p.write(cout, opt)
 
 class Options:
@@ -914,6 +1134,7 @@ class Options:
         self.name_globbing = \
                 Unified.NAME_SUFFIX
         self.yielding_parse = False
+        self.fixup = None
         self.parse()
 
     def parse(self):
@@ -926,6 +1147,7 @@ where the actions are:
   -O|--parse-only              only parse input -- no output generated
   -P|--print-diff              print out a processed input (default)
   -S|--print-stats             print out statistics info
+  -F|--fixup-diff=FILE         fixup hunk addresses
 and the options are:
   -a|--apply-regex=WHERE       restrict applicating the hunk regex to diff text
                                  lines specified; WHERE is either 'all' (default),
@@ -1040,6 +1262,7 @@ line-buffered:  %s
 line-numbers:   %s
 name-globbing:  %s
 yielding-parse: %s
+fixup:          %s
 """,
             self.action.__name__.replace('_', '-'),
             REGEX_APPLY[
@@ -1064,7 +1287,8 @@ yielding-parse: %s
             self.line_numbers,
             GLOBBING[
             self.name_globbing],
-            self.yielding_parse)
+            self.yielding_parse,
+            self.fixup or '-')
 
         def invalid_arg(opt, arg, *extra):
             assert isinstance(arg, str)
@@ -1165,10 +1389,14 @@ yielding-parse: %s
             except ValueError:
                 invalid_arg(opt, arg)
 
+        def parse_fixup_file(arg):
+            p = FixupParser(arg)
+            return p.parse()
+
         from getopt import gnu_getopt, GetoptError
         try:
             opts, args = gnu_getopt(args,
-                '?OPS' 'a:de:f:g:hi:l:mnp:r:stu:v:wx:y', (
+                '?F:OPS' 'a:de:f:g:hi:l:mnp:r:stu:v:wx:y', (
 
                 'apply-regex=',
                 'clear-prefix=',
@@ -1185,6 +1413,7 @@ yielding-parse: %s
                 'no-exclude-files',
                 'exclude-new-files',
                 'no-exclude-new-files',
+                'fixup-diff=',
                 'hunk-range=',
                 'no-hunk-range',
                 'hunk-regex=',
@@ -1223,6 +1452,9 @@ yielding-parse: %s
                 self.action = Act.print_diff
             elif opt in ('-S', '--print-stats'):
                 self.action = Act.print_stats
+            elif opt in ('-F', '--fixup-diff'):
+                self.action = Act.fixup_diff
+                self.fixup = arg
             elif opt in ('-a', '--apply-regex'):
                 self.apply_regex = parse_apply(opt, arg)
             elif opt in ('-d', '--line-buffered'):
@@ -1307,6 +1539,9 @@ yielding-parse: %s
         if len(args):
             self.input_file = parse_file_name(None, args[0])
 
+        if self.action != Act.fixup_diff:
+            self.fixup = None
+
         if bits.version:
             version()
         if bits.dump:
@@ -1352,6 +1587,9 @@ yielding-parse: %s
                 ")")
         else:
             self.clear_suffix = None
+
+        if self.action == Act.fixup_diff:
+            self.fixup = parse_fixup_file(self.fixup)
 
         from signal import signal, SIGPIPE, SIG_DFL
         signal(SIGPIPE, SIG_DFL)
