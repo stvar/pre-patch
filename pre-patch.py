@@ -946,7 +946,7 @@ class DiffParser(BaseParser):
 
 class Fixup:
 
-    class Hunk:
+    class Offs:
 
         def __init__(self, index, lineno, offset):
             self.index = index
@@ -958,7 +958,7 @@ class Fixup:
             assert self.index <= len(hunks)
             hunks[self.index - 1].fixup(self.offset)
 
-    class Fail:
+    class Noop:
 
         def __init__(self, index, lineno):
             self.index = index
@@ -988,14 +988,14 @@ class FixupParser(BaseParser):
         self.open_input()
 
     TOK_FILE = 1 << 2
-    TOK_HUNK = 1 << 3
-    TOK_FAIL = 1 << 4
+    TOK_OFFS = 1 << 3
+    TOK_NOOP = 1 << 4
     TOK_ERRS = 1 << 5
 
     FILE = Rex(r"^checking file (.+)$")
-    HUNK = Rex(r"^Hunk #([0-9]+) succeeded at ([0-9]+) "
+    OFFS = Rex(r"^Hunk #([0-9]+) succeeded at ([0-9]+) "
                r"\(offset ([0-9]+) lines\)\.$")
-    FAIL = Rex(r"^Hunk #([0-9]+) FAILED at ([0-9]+)\.$")
+    NOOP = Rex(r"^Hunk #([0-9]+) FAILED at ([0-9]+)\.$")
     ERRS = Rex(r"^([0-9]+) out of [0-9]+ hunk FAILED$")
 
     def next_tok(self):
@@ -1009,15 +1009,15 @@ class FixupParser(BaseParser):
         elif self.FILE.match(self.line):
             self.tok = self.TOK_FILE
             self.lex = self.FILE[1]
-        elif self.HUNK.match(self.line):
-            self.tok = self.TOK_HUNK
-            self.lex = int(self.HUNK[1]), \
-                       int(self.HUNK[2]), \
-                       int(self.HUNK[3])
-        elif self.FAIL.match(self.line):
-            self.tok = self.TOK_FAIL
-            self.lex = int(self.FAIL[1]), \
-                       int(self.FAIL[2])
+        elif self.OFFS.match(self.line):
+            self.tok = self.TOK_OFFS
+            self.lex = int(self.OFFS[1]), \
+                       int(self.OFFS[2]), \
+                       int(self.OFFS[3])
+        elif self.NOOP.match(self.line):
+            self.tok = self.TOK_NOOP
+            self.lex = int(self.NOOP[1]), \
+                       int(self.NOOP[2])
         elif self.ERRS.match(self.line):
             self.tok = self.TOK_ERRS
             self.lex = int(self.ERRS[1])
@@ -1032,17 +1032,17 @@ class FixupParser(BaseParser):
         self.need_tok(tok)
         return self.prev
 
-    # hunk   : HUNK | FAIL
+    # hunk   : OFFS | NOOP
     #        ;
     def parse_hunk(self):
-        if self.try_tok(self.TOK_HUNK):
-            return Fixup.Hunk(
+        if self.try_tok(self.TOK_OFFS):
+            return Fixup.Offs(
                 index = self.prev[0],
                 lineno = self.prev[1],
                 offset = self.prev[2]
             )
-        if self.try_tok(self.TOK_FAIL):
-            return Fixup.Fail(
+        if self.try_tok(self.TOK_NOOP):
+            return Fixup.Noop(
                 index = self.prev[0],
                 lineno = self.prev[1]
             )
@@ -1054,8 +1054,8 @@ class FixupParser(BaseParser):
     def parse_hunks(self):
         return self.parse_closure(
             self.parse_hunk,
-            self.TOK_HUNK |
-            self.TOK_FAIL,
+            self.TOK_OFFS |
+            self.TOK_NOOP,
             True
         )
 
