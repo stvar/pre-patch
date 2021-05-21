@@ -1196,7 +1196,7 @@ and the options are:
   -vr|--[no-]invert=range      select hunks either outside or inside the range
                                  of `-r|--hunk-range' (default: inside)
   -vw|--[no-]invert=new        include only or exclude new file hunks when given
-                                 `-n|--exclude-new-files' (default: exclude)
+                                 `-w|--exclude-new-files' (default: exclude)
   -w|--[no-]exclude-new-files  exclude new files from output (those files having
                                  the first hunk address of form '@@ -0,0 ...')
   -x|--exclude-files=GLOB      exclude from output files matching given globbing
