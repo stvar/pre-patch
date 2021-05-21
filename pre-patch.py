@@ -661,10 +661,11 @@ class BaseParser:
     def error_context(self):
         from traceback import extract_stack
         for t in reversed(extract_stack()):
+            if t[2] == 'parse' or \
+               t[2] == 'parse_tok':
+                return 'input'
             if t[2].startswith('parse_'):
                 return t[2][6:].replace('_', ' ')
-            if t[2] == 'parse':
-                return 'input'
         return None
 
     def invalid_line(self, line, part = False):
