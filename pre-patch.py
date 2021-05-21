@@ -992,11 +992,11 @@ class FixupParser(BaseParser):
     TOK_NOOP = 1 << 4
     TOK_ERRS = 1 << 5
 
-    FILE = Rex(r"^checking file (.+)$")
+    FILE = Rex(r"^checking (?:file|symbolic link) (.+)$")
     OFFS = Rex(r"^Hunk #([0-9]+) succeeded at ([0-9]+) "
                r"\(offset ([0-9]+) lines\)\.$")
-    NOOP = Rex(r"^Hunk #([0-9]+) FAILED at ([0-9]+)\.$")
-    ERRS = Rex(r"^([0-9]+) out of [0-9]+ hunk FAILED$")
+    NOOP = Rex(r"^Hunk #([0-9]+) (?:FAILED|ignored) at ([0-9]+)\.$")
+    ERRS = Rex(r"^([0-9]+) out of [0-9]+ hunks? (?:FAILED|ignored)$")
 
     def next_tok(self):
         self.line = self.file.readline()
