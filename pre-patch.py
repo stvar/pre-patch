@@ -983,10 +983,6 @@ class Fixup:
 
 class FixupParser(BaseParser):
 
-    def __init__(self, input):
-        self.input = input
-        self.open_input()
-
     TOK_FILE = 1 << 2
     TOK_OFFS = 1 << 3
     TOK_NOOP = 1 << 4
