@@ -1158,7 +1158,7 @@ and the options are:
                                  using the type of buffering given by the system
   -e|--hunk-regex=REGEX        filter hunks from output according to given regex
      --no-hunk-regex
-  -f|--input-file=FILE         input plain diff file (default: '-', i.e. stdin)
+  -f|--input-file=FILE         input unified diff file (default: '-', i.e. stdin)
   -g|--name-globbing=WHAT      select the diff name to use when globbing with
                                  `-i|--include-files' or `-x|--exclude-files';
                                  WHAT is either 'source' or 'target' for the
