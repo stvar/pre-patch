@@ -990,7 +990,7 @@ class FixupParser(BaseParser):
 
     FILE = Rex(r"^checking (?:file|symbolic link) (.+)$")
     OFFS = Rex(r"^Hunk #([0-9]+) succeeded at ([0-9]+) "
-               r"\(offset ([0-9]+) lines\)\.$")
+               r"\(offset (-?[0-9]+) lines\)\.$")
     NOOP = Rex(r"^Hunk #([0-9]+) (?:FAILED|ignored) at ([0-9]+)\.$")
     ERRS = Rex(r"^([0-9]+) out of [0-9]+ hunks? (?:FAILED|ignored)$")
 
